@@ -1,0 +1,107 @@
+# ================= LAB 03 =================
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
+
+# ---------- Functions ----------
+def load_data(filepath):
+return pd.read_csv(filepath)
+
+def preprocess_data(df):
+# Normalize column names
+df.columns = df.columns.str.strip().str.lower()
+
+if 'gender' not in df.columns:
+raise KeyError("Column 'gender' not found. Available: " + str(df.columns.tolist()))
+
+# Normalize gender values
+df['gender'] = df['gender'].astype(str).str.strip().str.lower()
+
+# Accept multiple forms
+df = df[df['gender'].isin(['male', 'female', 'm', 'f'])]
+df['gender'] = df['gender'].replace({'m': 'male', 'f': 'female'})
+
+# Use midterm and final scores
+if not {'midterm_score', 'final_score'}.issubset(df.columns):
+raise KeyError("midterm_score/final_score not found. Available: " + str(df.columns.tolist()))
+
+X = df[['midterm_score', 'final_score']]
+y = df['gender'].map({'male': 0, 'female': 1})
+return X, y
+
+def class_centroids(X, y):
+df = pd.DataFrame(X, columns=['midterm_score', 'final_score'])
+df['label'] = y.values
+centroids = df.groupby('label').mean().values
+spreads = df.groupby('label').std().values
+inter_dist = np.linalg.norm(centroids[0] - centroids[1])
+return centroids, spreads, inter_dist
+
+def plot_histogram(X):
+if isinstance(X, pd.DataFrame):
+plt.hist(X['midterm_score'], bins=10, color='skyblue', edgecolor='black')
+else:
+# assume numpy array with first column as midterm_score
+plt.hist(X[:, 0], bins=10, color='skyblue', edgecolor='black')
+plt.title("Histogram of Midterm Scores")
+plt.xlabel("Score")
+plt.ylabel("Frequency")
+plt.show()
+
+def minkowski_distance(vec1, vec2, r):
+return np.linalg.norm(vec1 - vec2, ord=r)
+
+def knn_train_test(X, y, k=3):
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+model = KNeighborsClassifier(n_neighbors=k)
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
+return model, X_train, X_test, y_train, y_test, y_pred
+
+def evaluate_model(y_test, y_pred):
+cm = confusion_matrix(y_test, y_pred)
+report = classification_report(y_test, y_pred)
+acc = accuracy_score(y_test, y_pred)
+return cm, report, acc
+
+def accuracy_vs_k(X, y, k_values=range(1,12)):
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+acc_list = []
+for k in k_values:
+model = KNeighborsClassifier(n_neighbors=k)
+model.fit(X_train, y_train)
+acc_list.append(model.score(X_test, y_test))
+plt.plot(k_values, acc_list, marker='o')
+plt.xlabel("k")
+plt.ylabel("Accuracy")
+plt.title("Accuracy vs k")
+plt.show()
+return acc_list
+
+# ---------- Main ----------
+if __name__ == "__main__":
+df = load_data("/Users/nikhilreddy/Desktop/Students Performance Dataset.csv") # ✅ Fixed path & indentation
+X, y = preprocess_data(df)
+
+centroids, spreads, inter_dist = class_centroids(X, y)
+print("Class Centroids:\n", centroids)
+print("Class Spreads:\n", spreads)
+print("Interclass Distance:", inter_dist)
+
+plot_histogram(X)
+
+# Minkowski example
+v1, v2 = X.iloc[0].values, X.iloc[1].values
+mink_distances = [minkowski_distance(v1, v2, r) for r in range(1,11)]
+print("Minkowski Distances:", mink_distances)
+
+model, X_train, X_test, y_train, y_test, y_pred = knn_train_test(X, y, k=3)
+cm, report, acc = evaluate_model(y_test, y_pred)
+print("Confusion Matrix:\n", cm)
+print("Classification Report:\n", report)
+print("Accuracy:", acc)
+
+accuracy_vs_k(X, y)
