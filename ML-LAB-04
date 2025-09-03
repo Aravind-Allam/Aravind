@@ -1,0 +1,107 @@
+# ================= LAB 04 =================
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import confusion_matrix, classification_report, mean_squared_error, r2_score
+
+# ---------- Functions ----------
+def load_data(filepath):
+return pd.read_csv(filepath)
+
+def preprocess_data(df):
+df.columns = df.columns.str.strip().str.lower()
+
+if 'gender' not in df.columns:
+raise KeyError("Column 'gender' not found. Available: " + str(df.columns.tolist()))
+
+df['gender'] = df['gender'].astype(str).str.strip().str.lower()
+df = df[df['gender'].isin(['male', 'female', 'm', 'f'])]
+df['gender'] = df['gender'].replace({'m': 'male', 'f': 'female'})
+
+if not {'midterm_score', 'final_score'}.issubset(df.columns):
+raise KeyError("midterm_score/final_score not found. Available: " + str(df.columns.tolist()))
+
+X = df[['midterm_score', 'final_score']]
+y = df['gender'].map({'male': 0, 'female': 1})
+return X, y
+
+def evaluate_confusion(model, X_train, y_train, X_test, y_test):
+y_train_pred = model.predict(X_train)
+y_test_pred = model.predict(X_test)
+cm_train = confusion_matrix(y_train, y_train_pred)
+cm_test = confusion_matrix(y_test, y_test_pred)
+report_train = classification_report(y_train, y_train_pred)
+report_test = classification_report(y_test, y_test_pred)
+return cm_train, cm_test, report_train, report_test
+
+def regression_metrics(y_true, y_pred):
+mse = mean_squared_error(y_true, y_pred)
+rmse = np.sqrt(mse)
+mape = np.mean(np.abs((y_true - y_pred)/y_true)) * 100
+r2 = r2_score(y_true, y_pred)
+return mse, rmse, mape, r2
+
+def generate_random_data(n=20):
+X = np.random.randint(1, 11, (n, 2))
+y = np.random.choice([0, 1], n)
+return X, y
+
+def plot_data(X, y, title="Scatter Plot"):
+plt.scatter(X[:,0], X[:,1], c=y, cmap='bwr')
+plt.title(title)
+plt.xlabel("Feature X")
+plt.ylabel("Feature Y")
+plt.show()
+
+def plot_decision_boundary(model, X, y, step=0.1):
+x_min, x_max = 0, 10
+y_min, y_max = 0, 10
+xx, yy = np.meshgrid(np.arange(x_min, x_max, step),
+np.arange(y_min, y_max, step))
+grid_points = np.c_[xx.ravel(), yy.ravel()]
+Z = model.predict(grid_points)
+Z = Z.reshape(xx.shape)
+plt.contourf(xx, yy, Z, cmap='bwr', alpha=0.3)
+plt.scatter(X[:,0], X[:,1], c=y, cmap='bwr', edgecolor='k')
+plt.title("Decision Boundary")
+plt.show()
+
+def tune_hyperparameter(X, y):
+param_grid = {'n_neighbors': list(range(1, 21))}
+grid = GridSearchCV(KNeighborsClassifier(), param_grid, cv=5)
+grid.fit(X, y)
+return grid.best_params_, grid.best_score_
+
+# ---------- Main ----------# ---------- Main ----------
+if __name__ == "__main__":
+# Correct Mac path (not Windows path)
+df = load_data("/Users/nikhilreddy/Desktop/Students Performance Dataset.csv")
+
+X, y = preprocess_data(df)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+knn = KNeighborsClassifier(n_neighbors=3)
+knn.fit(X_train, y_train)
+
+cm_train, cm_test, report_train, report_test = evaluate_confusion(knn, X_train, y_train, X_test, y_test)
+print("Train Confusion Matrix:\n", cm_train)
+print("Test Confusion Matrix:\n", cm_test)
+print("Train Report:\n", report_train)
+print("Test Report:\n", report_test)
+
+# Example regression: predict final_score using midterm_score
+mse, rmse, mape, r2 = regression_metrics(df['final_score'], df['midterm_score'])
+print("MSE:", mse, "RMSE:", rmse, "MAPE:", mape, "R2:", r2)
+
+# Random dataset for visualization
+X_rand, y_rand = generate_random_data()
+plot_data(X_rand, y_rand, title="Random Training Data")
+model = KNeighborsClassifier(n_neighbors=3)
+model.fit(X_rand, y_rand)
+plot_decision_boundary(model, X_rand, y_rand)
+
+# Hyperparameter tuning
+best_k, best_score = tune_hyperparameter(X, y)
+print("Best k:", best_k, "Best CV Score:", best_score)
